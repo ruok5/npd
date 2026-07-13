@@ -65,6 +65,16 @@ and barely registers in `top` when idle. AppleScript is used exactly
 once at startup to seed initial state, since notifications are events,
 not state.
 
+## Multiple writers
+
+Other players may write `~/.nowplaying.json` directly. Set your own
+`source`, keep the same fields, and stamp `updatedAt` (ISO 8601) on
+every write. While the file holds a non-Music source that is `playing`
+and was stamped within the last 10 minutes, npd skips its own pause /
+stop / track-change writes — but the moment Music starts *playing*, it
+takes the file back. Re-stamp at least every 10 minutes (a write per
+track change is plenty) or npd will treat the entry as stale.
+
 ## License
 
 [WTFPL](LICENSE).

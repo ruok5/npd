@@ -2,6 +2,7 @@ import Foundation
 
 let HOME = FileManager.default.homeDirectoryForCurrentUser.path
 let JSON_PATH = "\(HOME)/.nowplaying.json"
+let YIELD_WINDOW: TimeInterval = 600
 
 let iso = ISO8601DateFormatter()
 
@@ -10,7 +11,26 @@ func log(_ msg: String) {
     FileHandle.standardError.write(line.data(using: .utf8)!)
 }
 
+// Another writer owns the file while its entry says it's playing and is
+// fresher than YIELD_WINDOW; writers must re-stamp updatedAt within that
+// window (each track change is plenty) to keep ownership.
+func foreignSourceActive() -> Bool {
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: JSON_PATH)),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let source = obj["source"] as? String, source != "Music",
+          (obj["state"] as? String) == "playing",
+          let stamp = obj["updatedAt"] as? String,
+          let ts = iso.date(from: stamp)
+    else { return false }
+    return Date().timeIntervalSince(ts) < YIELD_WINDOW
+}
+
 func writeJSON(_ dict: [String: Any]) {
+    let newState = (dict["state"] as? String) ?? "unknown"
+    if newState != "playing", foreignSourceActive() {
+        log("foreign source active; skipped \(newState) write")
+        return
+    }
     var out = dict
     out["source"] = "Music"
     out["updatedAt"] = iso.string(from: Date())
