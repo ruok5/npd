@@ -48,12 +48,35 @@ func writeJSON(_ dict: [String: Any]) {
     }
 }
 
+// Strip reissue noise — "[2011 Remaster]", "(Deluxe Edition)", "(Bonus Track)",
+// "[Disc 2]", "(25th Anniversary ...)" — from titles and album names.
+let noisePatterns = [
+    " *\\[[^\\]]*[Rr]emaster[^\\]]*\\]",
+    " *\\([^)]*[Rr]emaster[^)]*\\)",
+    " *\\[[^\\]]*[Ee]dition[^\\]]*\\]",
+    " *\\([^)]*[Ee]dition[^)]*\\)",
+    " *\\[[^\\]]*[Bb]onus[^\\]]*\\]",
+    " *\\([^)]*[Bb]onus[^)]*\\)",
+    " *\\[Disc [0-9]+\\]",
+    " *\\(Disc [0-9]+\\)",
+    " *\\[[^\\]]*[Aa]nniversary[^\\]]*\\]",
+    " *\\([^)]*[Aa]nniversary[^)]*\\)",
+]
+
+func cleanMusicText(_ text: String) -> String {
+    var out = text
+    for pattern in noisePatterns {
+        out = out.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+    }
+    return out.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
+}
+
 func extract(_ userInfo: [AnyHashable: Any]) -> [String: Any] {
     var out: [String: Any] = [:]
     out["state"] = ((userInfo["Player State"] as? String) ?? "unknown").lowercased()
-    if let v = userInfo["Name"] as? String { out["title"] = v }
+    if let v = userInfo["Name"] as? String { out["title"] = cleanMusicText(v) }
     if let v = userInfo["Artist"] as? String { out["artist"] = v }
-    if let v = userInfo["Album"] as? String { out["album"] = v }
+    if let v = userInfo["Album"] as? String { out["album"] = cleanMusicText(v) }
     if let v = userInfo["Album Artist"] as? String, !v.isEmpty { out["albumArtist"] = v }
     if let v = userInfo["Genre"] as? String, !v.isEmpty { out["genre"] = v }
     if let ms = userInfo["Total Time"] as? NSNumber {
@@ -111,9 +134,9 @@ func seedFromAppleScript() {
     }
     var out: [String: Any] = [:]
     out["state"] = parts[0]
-    out["title"] = parts[1]
+    out["title"] = cleanMusicText(parts[1])
     out["artist"] = parts[2]
-    out["album"] = parts[3]
+    out["album"] = cleanMusicText(parts[3])
     if !parts[4].isEmpty { out["albumArtist"] = parts[4] }
     if !parts[5].isEmpty { out["genre"] = parts[5] }
     if let d = Double(parts[6]) { out["duration"] = d }
